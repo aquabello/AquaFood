@@ -1,0 +1,39 @@
+version: '3.8'
+name: "${COMPOSE_PROJECT_NAME:-myhelloworld}-green" # Give green compose a distinct project name scope if needed, or rely on -f
+
+services:
+  frontend-green:
+    image: ${DOCKERHUB_ID}/nuxt3-app:${FE_IMAGE_TAG_GREEN:-green}
+    container_name: frontend-green
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    environment:
+      - NUXT_PUBLIC_API_BASE_URL=${NUXT_PUBLIC_API_BASE_URL}
+    networks:
+      - app_network_ref # Reference the network defined in blue
+    restart: unless-stopped
+
+  backend-green:
+    image: ${DOCKERHUB_ID}/springboot-app:${BE_IMAGE_TAG_GREEN:-green}
+    container_name: backend-green
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      - SERVER_NAME=server-green # Explicitly green
+      - MYSQL_HOST=mysql # Assumes mysql container is reachable on the shared network
+      - MYSQL_PORT=${MYSQL_PORT}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    networks:
+      - app_network_ref # Reference the network defined in blue
+    restart: unless-stopped
+
+networks:
+  app_network_ref: # This service refers to the network created by blue.yml
+    name: ${COMPOSE_PROJECT_NAME:-myhelloworld}_app_network # Must match the network name from blue.yml
+    external: true
+
+# No volumes defined here as mysql_data is managed by blue.yml

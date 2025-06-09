@@ -1,0 +1,91 @@
+version: '3.8'
+
+# Use COMPOSE_PROJECT_NAME from .env or defaults to 'mainproject'
+# This helps in creating predictable network and volume names.
+name: "${COMPOSE_PROJECT_NAME:-project-root}" # Sets the project name for this compose file
+
+services:
+  frontend-blue:
+    image: ${DOCKERHUB_ID}/nuxt3-app:${FE_IMAGE_TAG_BLUE:-blue}
+    container_name: frontend-blue
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    environment:
+      - NUXT_PUBLIC_API_BASE_URL=${NUXT_PUBLIC_API_BASE_URL}
+    # ports: # No host ports; Nginx handles it.
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  backend-blue:
+    image: ${DOCKERHUB_ID}/springboot-app:${BE_IMAGE_TAG_BLUE:-blue}
+    container_name: backend-blue
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      - SERVER_NAME=server-blue # Explicitly blue
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=${MYSQL_PORT}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    # ports: # No host ports; Nginx handles it.
+    depends_on:
+      mysql:
+        condition: service_healthy # Wait for MySQL to be healthy
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ../.nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../.nginx/active_upstream.conf:/etc/nginx/conf.d/active_upstream.conf:ro
+    depends_on:
+      - frontend-blue # Nginx should start after initial targets are available
+      - backend-blue
+    networks:
+      - app_network
+    restart: always
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u$$MYSQL_USER", "-p$$MYSQL_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app_network: # Defines a network named 'project-root_app_network' (due to top-level name: directive)
+    driver: bridge
+    # name: my_shared_app_network # Alternative explicit naming
+
+volumes:
+  mysql_data: # Defines a volume named 'project-root_mysql_data'
+    driver: local
+    # name: my_shared_mysql_data # Alternative explicit naming

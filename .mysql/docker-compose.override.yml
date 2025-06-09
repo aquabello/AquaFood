@@ -1,0 +1,17 @@
+# .mysql/docker-compose.override.yml
+version: '3.8'
+
+services:
+  mysql:
+    # Add or override configurations for the 'mysql' service defined in .docker/docker-compose.blue.yml
+    volumes:
+      # - mysql_data:/var/lib/mysql # This is already in the main file, ensure no conflict or be specific
+                                   # If you want to ensure this path is used from here, you might need to structure it carefully
+                                   # or this override adds to existing volume mounts.
+                                   # Docker Compose typically merges lists of volumes.
+      - ./initdb:/docker-entrypoint-initdb.d # Mount local initdb scripts
+    # You could also override environment variables or ports here for local testing, for example:
+    # environment:
+    #   MYSQL_ROOT_PASSWORD: localrootpassword
+    # ports:
+    #   - "3307:3306" # Map to a different host port for local dev
